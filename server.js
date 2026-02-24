@@ -83,6 +83,111 @@ app.get('/terms', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'terms.html'));
 });
 
+app.get('/setup', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'setup.html'));
+});
+
+// --- Setup routes ---
+app.get('/api/setup/status', (req, res) => {
+  const configured = !!(WHATSAPP_ACCESS_TOKEN && PHONE_NUMBER_ID);
+  res.json({ configured });
+});
+
+app.get('/api/setup/config', authenticateToken, (req, res) => {
+  if (!META_APP_ID || !EMBEDDED_SIGNUP_CONFIG_ID) {
+    return res.status(500).json({ error: 'Embedded Signup not configured on server' });
+  }
+  res.json({ appId: META_APP_ID, configId: EMBEDDED_SIGNUP_CONFIG_ID });
+});
+
+app.post('/api/setup/complete', authenticateToken, async (req, res) => {
+  const { code, wabaId, phoneNumberId } = req.body;
+  console.log('[SETUP] Completing Embedded Signup...');
+  console.log('[SETUP] WABA ID:', wabaId, '| Phone Number ID:', phoneNumberId);
+
+  if (!code || !wabaId || !phoneNumberId) {
+    return res.status(400).json({ error: 'Missing code, wabaId, or phoneNumberId' });
+  }
+
+  try {
+    // Step 1: Exchange code for access token
+    console.log('[SETUP] Exchanging code for access token...');
+    const tokenUrl = `https://graph.facebook.com/${META_API_VERSION}/oauth/access_token?client_id=${META_APP_ID}&client_secret=${APP_SECRET}&code=${code}`;
+    const tokenRes = await fetch(tokenUrl);
+    const tokenData = await tokenRes.json();
+
+    if (!tokenRes.ok || !tokenData.access_token) {
+      console.error('[SETUP] Token exchange failed:', tokenData);
+      return res.status(400).json({ error: 'Token exchange failed', details: tokenData });
+    }
+
+    const accessToken = tokenData.access_token;
+    console.log('[SETUP] Access token obtained');
+
+    // Step 2: Subscribe app to WABA webhooks
+    console.log('[SETUP] Subscribing to WABA webhooks...');
+    const subscribeRes = await fetch(
+      `https://graph.facebook.com/${META_API_VERSION}/${wabaId}/subscribed_apps`,
+      {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${accessToken}` },
+      }
+    );
+    const subscribeData = await subscribeRes.json();
+
+    if (!subscribeRes.ok) {
+      console.error('[SETUP] Webhook subscription failed:', subscribeData);
+      return res.status(400).json({ error: 'Webhook subscription failed', details: subscribeData });
+    }
+    console.log('[SETUP] Webhook subscription successful');
+
+    // Step 3: Register phone number
+    console.log('[SETUP] Registering phone number...');
+    const registerRes = await fetch(
+      `https://graph.facebook.com/${META_API_VERSION}/${phoneNumberId}/register`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messaging_product: 'whatsapp',
+          pin: '123456',
+        }),
+      }
+    );
+    const registerData = await registerRes.json();
+
+    if (!registerRes.ok) {
+      console.error('[SETUP] Phone registration failed:', registerData);
+      // Non-fatal: phone may already be registered
+      console.warn('[SETUP] Continuing despite registration error');
+    } else {
+      console.log('[SETUP] Phone registration successful');
+    }
+
+    // Step 4: Save credentials
+    const config = {
+      WHATSAPP_ACCESS_TOKEN: accessToken,
+      PHONE_NUMBER_ID: phoneNumberId,
+      WABA_ID: wabaId,
+    };
+    saveConfig(config);
+
+    // Step 5: Update in-memory config
+    WHATSAPP_ACCESS_TOKEN = accessToken;
+    PHONE_NUMBER_ID = phoneNumberId;
+    WABA_ID = wabaId;
+
+    console.log('[SETUP] Embedded Signup complete');
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('[SETUP] Error:', err.message);
+    return res.status(500).json({ error: 'Setup failed: ' + err.message });
+  }
+});
+
 // --- Login route ---
 app.post('/api/login', (req, res) => {
   const { username, password } = req.body;
