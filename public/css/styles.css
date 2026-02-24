@@ -19,22 +19,27 @@ a {
 }
 
 /* --- Landing Page --- */
+.landing-body {
+  overflow: auto;
+}
+
 .landing-container {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 100vh;
+  min-height: 100vh;
   text-align: center;
   background: linear-gradient(180deg, #00a884 0%, #00a884 30%, #111b21 30%);
+  padding: 24px;
 }
 
 .landing-card {
   background: #202c33;
   border-radius: 8px;
   padding: 48px 40px;
-  max-width: 440px;
-  width: 90%;
+  max-width: 680px;
+  width: 100%;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
 }
 
@@ -45,11 +50,59 @@ a {
   color: #e9edef;
 }
 
-.landing-card p {
+.landing-subtitle {
   font-size: 15px;
   color: #8696a0;
-  margin-bottom: 32px;
+  margin-bottom: 0;
   line-height: 1.5;
+}
+
+.landing-divider {
+  height: 1px;
+  background: #2a3942;
+  margin: 28px 0;
+}
+
+.value-props {
+  display: flex;
+  gap: 24px;
+  margin-bottom: 32px;
+}
+
+.value-prop {
+  flex: 1;
+  text-align: center;
+}
+
+.value-prop-icon {
+  width: 40px;
+  height: 40px;
+  color: #00a884;
+  margin-bottom: 12px;
+}
+
+.value-prop h3 {
+  font-size: 15px;
+  font-weight: 600;
+  color: #e9edef;
+  margin-bottom: 6px;
+}
+
+.value-prop p {
+  font-size: 13px;
+  color: #8696a0;
+  line-height: 1.5;
+}
+
+@media (max-width: 600px) {
+  .value-props {
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .landing-card {
+    padding: 32px 24px;
+  }
 }
 
 .btn-primary {
