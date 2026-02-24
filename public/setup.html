@@ -18,11 +18,6 @@
   </div>
   <script src="/js/auth.js"></script>
   <script>
-    // Redirect if not logged in
-    if (!Auth.isLoggedIn()) {
-      window.location.href = '/login.html';
-    }
-
     const connectBtn = document.getElementById('connectBtn');
     const errorEl = document.getElementById('setupError');
     const statusEl = document.getElementById('setupStatus');
@@ -190,6 +185,11 @@
 
     // Init
     (async function () {
+      if (!Auth.isLoggedIn()) {
+        window.location.href = '/login.html';
+        return;
+      }
+
       await checkStatus();
       const configLoaded = await loadSetupConfig();
       if (!configLoaded) return;

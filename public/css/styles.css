@@ -306,6 +306,12 @@ a {
   background-color: #06cf9c;
 }
 
+.btn-login:disabled {
+  background-color: #3b4a54;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 /* --- Chat Page --- */
 .chat-container {
   display: flex;

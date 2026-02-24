@@ -21,6 +21,7 @@ const APP_SECRET = process.env.APP_SECRET;
 const META_API_VERSION = process.env.META_API_VERSION || 'v21.0';
 const META_APP_ID = process.env.META_APP_ID;
 const EMBEDDED_SIGNUP_CONFIG_ID = process.env.EMBEDDED_SIGNUP_CONFIG_ID;
+const WHATSAPP_BUSINESS_PIN = process.env.WHATSAPP_BUSINESS_PIN || '123456';
 let WABA_ID = process.env.WABA_ID;
 
 // --- Config file ---
@@ -153,7 +154,7 @@ app.post('/api/setup/complete', authenticateToken, async (req, res) => {
         },
         body: JSON.stringify({
           messaging_product: 'whatsapp',
-          pin: '123456',
+          pin: WHATSAPP_BUSINESS_PIN,
         }),
       }
     );
