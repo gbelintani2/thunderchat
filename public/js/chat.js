@@ -6,6 +6,13 @@
   // --- Auth gate ---
   if (!Auth.requireAuth()) return;
 
+  // --- Setup gate ---
+  Auth.checkSetupStatus().then(configured => {
+    if (!configured) {
+      window.location.href = '/setup';
+    }
+  });
+
   // --- Constants ---
   const STORAGE_KEY = 'thunderchat_conversations';
   const WS_RECONNECT_BASE = 1000;

@@ -34,6 +34,17 @@ const Auth = {
     return true;
   },
 
+  async checkSetupStatus() {
+    try {
+      const res = await fetch('/api/setup/status');
+      const data = await res.json();
+      return data.configured;
+    } catch (err) {
+      console.error('[AUTH] Setup status check failed:', err);
+      return false;
+    }
+  },
+
   async login(username, password) {
     console.log('[AUTH] Attempting login...');
     try {

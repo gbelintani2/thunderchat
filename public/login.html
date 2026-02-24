@@ -27,26 +27,31 @@
   <script src="/js/auth.js"></script>
   <script>
     // Redirect if already logged in
-    if (Auth.isLoggedIn()) {
-      window.location.href = '/chat.html';
-    }
-
-    document.getElementById('loginForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const errorEl = document.getElementById('loginError');
-      errorEl.style.display = 'none';
-
-      const username = document.getElementById('username').value;
-      const password = document.getElementById('password').value;
-
-      try {
-        await Auth.login(username, password);
-        window.location.href = '/chat.html';
-      } catch (err) {
-        errorEl.textContent = err.message;
-        errorEl.style.display = 'block';
+    (async function () {
+      if (Auth.isLoggedIn()) {
+        const configured = await Auth.checkSetupStatus();
+        window.location.href = configured ? '/chat.html' : '/setup';
+        return;
       }
-    });
+
+      document.getElementById('loginForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const errorEl = document.getElementById('loginError');
+        errorEl.style.display = 'none';
+
+        const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value;
+
+        try {
+          await Auth.login(username, password);
+          const configured = await Auth.checkSetupStatus();
+          window.location.href = configured ? '/chat.html' : '/setup';
+        } catch (err) {
+          errorEl.textContent = err.message;
+          errorEl.style.display = 'block';
+        }
+      });
+    })();
   </script>
 </body>
 </html>
