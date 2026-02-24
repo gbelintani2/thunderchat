@@ -41,6 +41,15 @@ function authenticateToken(req, res, next) {
   }
 }
 
+// --- Page routes ---
+app.get('/privacy', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'privacy.html'));
+});
+
+app.get('/terms', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'terms.html'));
+});
+
 // --- Login route ---
 app.post('/api/login', (req, res) => {
   const { username, password } = req.body;
