@@ -2,6 +2,7 @@ const express = require('express');
 const http = require('http');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
+const fs = require('fs');
 const path = require('path');
 const { WebSocketServer } = require('ws');
 
@@ -13,11 +14,43 @@ const PORT = process.env.PORT || 3000;
 const AUTH_USERNAME = process.env.AUTH_USERNAME || 'admin';
 const AUTH_PASSWORD = process.env.AUTH_PASSWORD || 'changeme';
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret';
-const WHATSAPP_ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN;
-const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID;
+let WHATSAPP_ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN;
+let PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID;
 const WEBHOOK_VERIFY_TOKEN = process.env.WEBHOOK_VERIFY_TOKEN;
 const APP_SECRET = process.env.APP_SECRET;
 const META_API_VERSION = process.env.META_API_VERSION || 'v21.0';
+const META_APP_ID = process.env.META_APP_ID;
+const EMBEDDED_SIGNUP_CONFIG_ID = process.env.EMBEDDED_SIGNUP_CONFIG_ID;
+let WABA_ID = process.env.WABA_ID;
+
+// --- Config file ---
+const CONFIG_PATH = path.join(__dirname, 'config.json');
+
+function loadConfig() {
+  try {
+    if (fs.existsSync(CONFIG_PATH)) {
+      const data = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
+      WHATSAPP_ACCESS_TOKEN = data.WHATSAPP_ACCESS_TOKEN || WHATSAPP_ACCESS_TOKEN;
+      PHONE_NUMBER_ID = data.PHONE_NUMBER_ID || PHONE_NUMBER_ID;
+      WABA_ID = data.WABA_ID || WABA_ID;
+      console.log('[CONFIG] Loaded credentials from config.json');
+    }
+  } catch (err) {
+    console.error('[CONFIG] Failed to load config.json:', err.message);
+  }
+}
+
+function saveConfig(config) {
+  try {
+    fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
+    console.log('[CONFIG] Saved credentials to config.json');
+  } catch (err) {
+    console.error('[CONFIG] Failed to save config.json:', err.message);
+    throw err;
+  }
+}
+
+loadConfig();
 
 // --- Middleware ---
 app.use(express.json());
