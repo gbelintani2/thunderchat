@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ThunderChat — Connect WhatsApp</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <div class="login-container">
+    <div class="login-card">
+      <h2>ThunderChat</h2>
+      <p class="setup-subtitle">Connect your WhatsApp Business Account to start messaging.</p>
+      <div class="setup-error" id="setupError"></div>
+      <div class="setup-status" id="setupStatus"></div>
+      <button id="connectBtn" class="btn-login" disabled>Loading...</button>
+    </div>
+  </div>
+  <script src="/js/auth.js"></script>
+  <script>
+    // Redirect if not logged in
+    if (!Auth.isLoggedIn()) {
+      window.location.href = '/login.html';
+    }
+
+    const connectBtn = document.getElementById('connectBtn');
+    const errorEl = document.getElementById('setupError');
+    const statusEl = document.getElementById('setupStatus');
+
+    let appConfig = null;
+
+    // Check if already configured
+    async function checkStatus() {
+      try {
+        const res = await fetch('/api/setup/status');
+        const data = await res.json();
+        if (data.configured) {
+          window.location.href = '/chat.html';
+          return;
+        }
+      } catch (err) {
+        console.error('[SETUP] Status check failed:', err);
+      }
+    }
+
+    // Load config (app ID, config ID)
+    async function loadSetupConfig() {
+      try {
+        const res = await fetch('/api/setup/config', {
+          headers: { 'Authorization': 'Bearer ' + Auth.getToken() },
+        });
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || 'Failed to load config');
+        }
+        appConfig = await res.json();
+        return true;
+      } catch (err) {
+        errorEl.textContent = err.message;
+        errorEl.style.display = 'block';
+        connectBtn.textContent = 'Configuration Error';
+        return false;
+      }
+    }
+
+    // Initialize Facebook SDK
+    function initFacebookSDK(appId) {
+      return new Promise((resolve) => {
+        window.fbAsyncInit = function () {
+          FB.init({
+            appId: appId,
+            autoLogAppEvents: true,
+            xfbml: false,
+            version: 'v21.0',
+          });
+          resolve();
+        };
+
+        const script = document.createElement('script');
+        script.src = 'https://connect.facebook.net/en_US/sdk.js';
+        script.async = true;
+        script.defer = true;
+        script.crossOrigin = 'anonymous';
+        document.body.appendChild(script);
+      });
+    }
+
+    // Launch Embedded Signup
+    function launchEmbeddedSignup() {
+      errorEl.style.display = 'none';
+      statusEl.style.display = 'none';
+
+      FB.login(
+        function (response) {
+          if (response.authResponse) {
+            const code = response.authResponse.code;
+            console.log('[SETUP] Got authorization code');
+            completeSetup(code);
+          } else {
+            console.error('[SETUP] Login cancelled or failed');
+            errorEl.textContent = 'WhatsApp signup was cancelled. Please try again.';
+            errorEl.style.display = 'block';
+          }
+        },
+        {
+          config_id: appConfig.configId,
+          response_type: 'code',
+          override_default_response_type: true,
+          extras: {
+            feature_type: 'coex',
+            sessionInfoVersion: 3,
+          },
+        }
+      );
+    }
+
+    // Session info listener — captures WABA ID and phone number ID from the popup
+    window.addEventListener('message', function (event) {
+      if (event.origin !== 'https://www.facebook.com' && event.origin !== 'https://web.facebook.com') {
+        return;
+      }
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'WA_EMBEDDED_SIGNUP') {
+          if (data.event === 'FINISH') {
+            window._embeddedSignupData = {
+              wabaId: data.data.waba_id,
+              phoneNumberId: data.data.phone_number_id,
+            };
+            console.log('[SETUP] Session info received:', window._embeddedSignupData);
+          } else if (data.event === 'CANCEL') {
+            console.log('[SETUP] Signup cancelled by user');
+            errorEl.textContent = 'Setup was cancelled.';
+            errorEl.style.display = 'block';
+          } else if (data.event === 'ERROR') {
+            console.error('[SETUP] Signup error:', data.data);
+            errorEl.textContent = 'An error occurred during signup. Please try again.';
+            errorEl.style.display = 'block';
+          }
+        }
+      } catch (e) {
+        // Not a JSON message, ignore
+      }
+    });
+
+    // Complete setup — send code + session info to backend
+    async function completeSetup(code) {
+      const sessionData = window._embeddedSignupData;
+      if (!sessionData || !sessionData.wabaId || !sessionData.phoneNumberId) {
+        errorEl.textContent = 'Missing WhatsApp account information. Please try again.';
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      connectBtn.disabled = true;
+      connectBtn.textContent = 'Setting up...';
+      statusEl.textContent = 'Connecting your WhatsApp account...';
+      statusEl.style.display = 'block';
+
+      try {
+        const res = await fetch('/api/setup/complete', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + Auth.getToken(),
+          },
+          body: JSON.stringify({
+            code: code,
+            wabaId: sessionData.wabaId,
+            phoneNumberId: sessionData.phoneNumberId,
+          }),
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || 'Setup failed');
+        }
+
+        statusEl.textContent = 'Connected! Redirecting...';
+        window.location.href = '/chat.html';
+      } catch (err) {
+        console.error('[SETUP] Complete failed:', err);
+        errorEl.textContent = err.message;
+        errorEl.style.display = 'block';
+        statusEl.style.display = 'none';
+        connectBtn.disabled = false;
+        connectBtn.textContent = 'Connect WhatsApp';
+      }
+    }
+
+    // Init
+    (async function () {
+      await checkStatus();
+      const configLoaded = await loadSetupConfig();
+      if (!configLoaded) return;
+
+      await initFacebookSDK(appConfig.appId);
+      connectBtn.textContent = 'Connect WhatsApp';
+      connectBtn.disabled = false;
+      connectBtn.addEventListener('click', launchEmbeddedSignup);
+    })();
+  </script>
+</body>
+</html>
