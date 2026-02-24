@@ -116,9 +116,15 @@ PHONE_NUMBER_ID=your-phone-number-id
 WEBHOOK_VERIFY_TOKEN=your-chosen-verify-token
 APP_SECRET=your-meta-app-secret
 
+META_APP_ID=your-meta-app-id
+EMBEDDED_SIGNUP_CONFIG_ID=your-embedded-signup-config-id
+
 META_API_VERSION=v21.0
+WHATSAPP_BUSINESS_PIN=123456
 PORT=3000
 ```
+
+**Note:** `WHATSAPP_ACCESS_TOKEN` and `PHONE_NUMBER_ID` can be left empty if you plan to use Embedded Signup (Part 11). The Embedded Signup flow will configure them automatically. `META_APP_ID` and `EMBEDDED_SIGNUP_CONFIG_ID` are required for Embedded Signup — see Part 11 for how to obtain them.
 
 ---
 
@@ -165,7 +171,11 @@ Tiers increase automatically based on message quality and volume.
 
 ## Part 10: Becoming a Tech Provider
 
-A Tech Provider builds WhatsApp solutions for other businesses. Clients manage their own billing with Meta directly.
+A Tech Provider builds WhatsApp solutions for other businesses. Clients manage their own billing with Meta directly. The key feature is **Embedded Signup** — a Meta-provided UI flow that lets clients connect their WhatsApp Business Account directly through your app.
+
+ThunderChat supports Embedded Signup with **COEX (Co-Existence)**, meaning clients who already use another WhatsApp solution provider can register a new phone number through ThunderChat without disrupting their existing setup.
+
+Documentation: [developers.facebook.com/docs/whatsapp/embedded-signup](https://developers.facebook.com/docs/whatsapp/embedded-signup)
 
 ### Prerequisites
 - A verified Meta Business Account
@@ -189,21 +199,54 @@ A Tech Provider builds WhatsApp solutions for other businesses. Clients manage t
 This enables Embedded Signup — allowing your clients to connect their WhatsApp Business Account through your app.
 
 1. In the App Dashboard, go to **Add Products** > **Facebook Login for Business** > **Set Up**.
-2. Configure the **Valid OAuth Redirect URIs** with your app's callback URL.
-3. Set the **Deauthorize Callback URL** and **Data Deletion Request URL**.
+2. Configure the **Valid OAuth Redirect URIs** with your app's callback URL:
+   - `https://your-render-app.onrender.com/setup`
+3. Set the **Deauthorize Callback URL** to `https://your-render-app.onrender.com/webhook`.
+4. Set the **Data Deletion Request URL** to `https://your-render-app.onrender.com/webhook`.
 
-### Step 3: Implement Embedded Signup
+**Note:** The Deauthorize and Data Deletion URLs can point to placeholder endpoints for now. The OAuth Redirect URI must match your deployed URL exactly.
 
-Embedded Signup lets your clients:
-1. Create or select a Meta Business Account
-2. Create or select a WhatsApp Business Account
-3. Register a phone number
+### Step 3: Create an Embedded Signup Configuration
 
-All within your app's interface using Meta's pre-built UI flow.
+1. In the App Dashboard, go to **WhatsApp > Embedded Signup Configurations**.
+2. Click **Create Configuration**.
+3. Configure the following:
+   - **Solution type:** Select **Co-Existence** (this enables COEX, allowing clients who already have a WABA with another provider to register a new phone number for ThunderChat without disrupting their existing setup).
+   - **Permissions:** Ensure `whatsapp_business_management` and `whatsapp_business_messaging` are included.
+4. Click **Create**.
+5. Copy the **Configuration ID** — this is your `EMBEDDED_SIGNUP_CONFIG_ID` environment variable.
 
-Documentation: [developers.facebook.com/docs/whatsapp/embedded-signup](https://developers.facebook.com/docs/whatsapp/embedded-signup)
+### Step 4: Get Your Meta App ID
 
-### Step 4: Upgrading to Tech Partner
+1. In the App Dashboard, go to **Settings > Basic**.
+2. Copy the **App ID** at the top of the page — this is your `META_APP_ID` environment variable.
+
+### Step 5: Set Environment Variables
+
+Set these two values in your Render.com dashboard:
+- `META_APP_ID` — your Meta App ID from Step 4
+- `EMBEDDED_SIGNUP_CONFIG_ID` — the configuration ID from Step 3
+
+### Step 6: Test the Embedded Signup Flow
+
+1. Log in to ThunderChat at `https://your-render-app.onrender.com/login.html`.
+2. If no WhatsApp account is configured, you'll be redirected to the setup page (`/setup`).
+3. Click **Connect WhatsApp**.
+4. A Meta popup will open. Walk through the steps:
+   - Sign in with your Facebook account (must have a role on the Meta App while in Development mode).
+   - Select or create a Meta Business Account.
+   - Select or create a WhatsApp Business Account (COEX: you can select an existing WABA managed by another provider).
+   - Register a phone number.
+5. The popup closes and ThunderChat automatically:
+   - Exchanges the authorization code for an access token
+   - Subscribes to WABA webhooks
+   - Registers the phone number
+   - Saves credentials to the server
+6. You'll be redirected to the chat page, ready to send and receive messages.
+
+**Note:** While the app is in Development mode, only users with a role on the app (admin, developer, tester) can complete the Embedded Signup flow. Switch to Live mode (Part 8) for production use.
+
+### Step 7: Upgrading to Tech Partner
 
 Once you meet these criteria, you're eligible for Tech Partner status (Meta Partner badge):
 
@@ -239,3 +282,23 @@ Tech Partner benefits include:
 ### "Invalid access token"
 - Temporary tokens expire after ~24 hours. Use a System User token for production.
 - Ensure the token has `whatsapp_business_messaging` permission.
+
+### Embedded Signup: "Configuration Error" on setup page
+- Verify `META_APP_ID` and `EMBEDDED_SIGNUP_CONFIG_ID` are set in your Render environment variables.
+- Check that Facebook Login for Business is added as a product in your Meta App Dashboard.
+
+### Embedded Signup: Popup closes but setup fails
+- Check the browser console for error messages.
+- Ensure the **Valid OAuth Redirect URI** in Facebook Login for Business settings matches your deployed URL exactly (e.g., `https://your-render-app.onrender.com/setup`).
+- Verify `APP_SECRET` is set correctly — it's used to exchange the authorization code for an access token.
+
+### Embedded Signup: "Token exchange failed"
+- The authorization code may have expired. Codes are single-use and short-lived. Try the flow again.
+- Verify `META_APP_ID` and `APP_SECRET` are correct.
+
+### Embedded Signup: "Webhook subscription failed"
+- Ensure your webhook endpoint (`/webhook`) is accessible and returning 200 for verification requests.
+- Check that `WEBHOOK_VERIFY_TOKEN` is set and matches what's configured in the App Dashboard.
+
+### After redeployment, WhatsApp is disconnected
+- On Render's free tier, `config.json` (where Embedded Signup saves credentials) does not persist across deploys. Re-run the Embedded Signup flow from the `/setup` page after each deploy, or set `WHATSAPP_ACCESS_TOKEN` and `PHONE_NUMBER_ID` as environment variables in Render directly.
