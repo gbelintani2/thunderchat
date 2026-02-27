@@ -372,7 +372,11 @@ app.post('/api/flows', (req, res) => {
 
     const decipher = crypto.createDecipheriv('aes-128-gcm', decryptedAesKey, iv);
     decipher.setAuthTag(authTag);
-    const decrypted = decipher.update(ciphertext, null, 'utf8') + decipher.final('utf8');
+    const decryptedBuffer = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+
+    // Last 16 bytes of decrypted plaintext are the AES key for encrypting the response
+    const responseAesKey = decryptedBuffer.slice(-16);
+    const decrypted = decryptedBuffer.slice(0, -16).toString('utf8');
 
     const flowData = JSON.parse(decrypted);
     console.log('[FLOWS] Decrypted request:', JSON.stringify(flowData));
@@ -381,9 +385,9 @@ app.post('/api/flows', (req, res) => {
     const response = handleFlowRequest(flowData);
     console.log('[FLOWS] Response:', JSON.stringify(response));
 
-    // Encrypt response with AES-128-GCM
+    // Encrypt response with AES-128-GCM using the response-specific key
     const responseIv = crypto.randomBytes(12);
-    const cipher = crypto.createCipheriv('aes-128-gcm', decryptedAesKey, responseIv);
+    const cipher = crypto.createCipheriv('aes-128-gcm', responseAesKey, responseIv);
     const encrypted = Buffer.concat([cipher.update(JSON.stringify(response), 'utf8'), cipher.final()]);
     const responseTag = cipher.getAuthTag();
 
