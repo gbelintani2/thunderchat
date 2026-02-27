@@ -385,10 +385,15 @@ app.post('/api/flows', (req, res) => {
     decipher.setAuthTag(authTag);
     const decryptedBuffer = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
 
+    // Log raw decrypted content for debugging
+    console.log('[FLOWS] Decrypted buffer length:', decryptedBuffer.length);
+    console.log('[FLOWS] Decrypted raw:', decryptedBuffer.toString('utf8'));
+
     // Last 16 bytes of decrypted plaintext are the AES key for encrypting the response
     const responseAesKey = decryptedBuffer.slice(-16);
     const decrypted = decryptedBuffer.slice(0, -16).toString('utf8');
 
+    console.log('[FLOWS] Body after split:', decrypted);
     const flowData = JSON.parse(decrypted);
     console.log('[FLOWS] Decrypted request:', JSON.stringify(flowData));
 
