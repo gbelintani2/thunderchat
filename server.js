@@ -329,14 +329,22 @@ function handleFlowRequest(flowData) {
   }
 
   if (action === 'data_exchange') {
+    if (data?.password === 'success') {
+      return {
+        version,
+        screen: 'SUCCESS',
+        data: {
+          extension_message_response: {
+            params: { flow_token, ...(data || {}) },
+          },
+        },
+      };
+    }
+
     return {
       version,
-      screen: 'SUCCESS',
-      data: {
-        extension_message_response: {
-          params: { flow_token, ...(data || {}) },
-        },
-      },
+      screen: 'TERMS_AND_CONDITIONS',
+      data: {},
     };
   }
 
