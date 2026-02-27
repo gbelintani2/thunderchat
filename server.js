@@ -392,16 +392,20 @@ app.post('/api/flows', (req, res) => {
     const response = handleFlowRequest(flowData);
     console.log('[FLOWS] Response:', JSON.stringify(response));
 
-    // Encrypt response with AES-128-GCM using the same key
-    const responseIv = crypto.randomBytes(12);
-    const cipher = crypto.createCipheriv('aes-128-gcm', decryptedAesKey, responseIv);
-    const encrypted = Buffer.concat([cipher.update(JSON.stringify(response), 'utf8'), cipher.final()]);
-    const responseTag = cipher.getAuthTag();
+    // Encrypt response with AES-128-GCM using the same key and flipped IV
+    const flippedIv = Buffer.from(iv);
+    for (let i = 0; i < flippedIv.length; i++) {
+      flippedIv[i] = ~flippedIv[i] & 0xff;
+    }
 
-    return res.json({
-      encrypted_flow_data: Buffer.concat([encrypted, responseTag]).toString('base64'),
-      initial_vector: responseIv.toString('base64'),
-    });
+    const cipher = crypto.createCipheriv('aes-128-gcm', decryptedAesKey, flippedIv);
+    const encrypted = Buffer.concat([
+      cipher.update(JSON.stringify(response), 'utf8'),
+      cipher.final(),
+      cipher.getAuthTag(),
+    ]);
+
+    return res.send(encrypted.toString('base64'));
   } catch (err) {
     console.error('[FLOWS] Error:', err.message);
     return res.status(500).json({ error: 'Failed to process flow request' });
