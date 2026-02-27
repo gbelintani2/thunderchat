@@ -23,10 +23,21 @@ const META_APP_ID = process.env.META_APP_ID;
 const EMBEDDED_SIGNUP_CONFIG_ID = process.env.EMBEDDED_SIGNUP_CONFIG_ID;
 const WHATSAPP_BUSINESS_PIN = process.env.WHATSAPP_BUSINESS_PIN || '123456';
 let WABA_ID = process.env.WABA_ID;
-const FLOWS_PRIVATE_KEY = process.env.FLOWS_PRIVATE_KEY
-  ? process.env.FLOWS_PRIVATE_KEY.replace(/\\n/g, '\n')
-  : null;
 const FLOWS_PRIVATE_KEY_PASSPHRASE = process.env.FLOWS_PRIVATE_KEY_PASSPHRASE || '';
+const FLOWS_PRIVATE_KEY = (() => {
+  if (process.env.FLOWS_PRIVATE_KEY_PATH) {
+    try {
+      return fs.readFileSync(process.env.FLOWS_PRIVATE_KEY_PATH, 'utf8');
+    } catch (err) {
+      console.error('[FLOWS] Failed to read private key file:', err.message);
+      return null;
+    }
+  }
+  if (process.env.FLOWS_PRIVATE_KEY) {
+    return process.env.FLOWS_PRIVATE_KEY.replace(/\\n/g, '\n');
+  }
+  return null;
+})();
 
 // --- Config file ---
 const CONFIG_PATH = path.join(__dirname, 'config.json');
