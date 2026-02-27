@@ -26,6 +26,7 @@ let WABA_ID = process.env.WABA_ID;
 const FLOWS_PRIVATE_KEY = process.env.FLOWS_PRIVATE_KEY
   ? process.env.FLOWS_PRIVATE_KEY.replace(/\\n/g, '\n')
   : null;
+const FLOWS_PRIVATE_KEY_PASSPHRASE = process.env.FLOWS_PRIVATE_KEY_PASSPHRASE || '';
 
 // --- Config file ---
 const CONFIG_PATH = path.join(__dirname, 'config.json');
@@ -354,7 +355,10 @@ app.post('/api/flows', (req, res) => {
 
   try {
     // Decrypt AES key with RSA private key
-    const privateKey = crypto.createPrivateKey(FLOWS_PRIVATE_KEY);
+    const privateKey = crypto.createPrivateKey({
+      key: FLOWS_PRIVATE_KEY,
+      passphrase: FLOWS_PRIVATE_KEY_PASSPHRASE,
+    });
     const decryptedAesKey = crypto.privateDecrypt(
       { key: privateKey, padding: crypto.constants.RSA_PKCS1_OAEP_PADDING, oaepHash: 'sha256' },
       Buffer.from(encrypted_aes_key, 'base64')
