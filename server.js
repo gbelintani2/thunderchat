@@ -23,6 +23,9 @@ const META_APP_ID = process.env.META_APP_ID;
 const EMBEDDED_SIGNUP_CONFIG_ID = process.env.EMBEDDED_SIGNUP_CONFIG_ID;
 const WHATSAPP_BUSINESS_PIN = process.env.WHATSAPP_BUSINESS_PIN || '123456';
 let WABA_ID = process.env.WABA_ID;
+const FLOWS_PRIVATE_KEY = process.env.FLOWS_PRIVATE_KEY
+  ? process.env.FLOWS_PRIVATE_KEY.replace(/\\n/g, '\n')
+  : null;
 
 // --- Config file ---
 const CONFIG_PATH = path.join(__dirname, 'config.json');
@@ -293,6 +296,101 @@ app.post('/webhook', (req, res) => {
   }
 
   res.status(200).send('OK');
+});
+
+// --- WhatsApp Flows endpoint ---
+function handleFlowRequest(flowData) {
+  const { version, action, screen, data, flow_token } = flowData;
+
+  if (action === 'ping') {
+    return { version, data: { status: 'active' } };
+  }
+
+  if (action === 'INIT') {
+    return {
+      version,
+      screen: 'WELCOME',
+      data: {
+        welcome_message: 'Welcome to ThunderChat! How can we help you?',
+      },
+    };
+  }
+
+  if (action === 'data_exchange') {
+    return {
+      version,
+      screen: 'SUCCESS',
+      data: {
+        extension_message_response: {
+          params: { flow_token, ...(data || {}) },
+        },
+      },
+    };
+  }
+
+  // BACK or unknown — return to welcome screen
+  return {
+    version,
+    screen: 'WELCOME',
+    data: {
+      welcome_message: 'Welcome to ThunderChat! How can we help you?',
+    },
+  };
+}
+
+app.post('/api/flows', (req, res) => {
+  console.log('[FLOWS] Incoming request');
+
+  if (!FLOWS_PRIVATE_KEY) {
+    console.error('[FLOWS] FLOWS_PRIVATE_KEY not configured');
+    return res.status(500).json({ error: 'Flows endpoint not configured' });
+  }
+
+  const { encrypted_flow_data, encrypted_aes_key, initial_vector } = req.body;
+
+  if (!encrypted_flow_data || !encrypted_aes_key || !initial_vector) {
+    return res.status(400).json({ error: 'Missing encrypted flow data' });
+  }
+
+  try {
+    // Decrypt AES key with RSA private key
+    const privateKey = crypto.createPrivateKey(FLOWS_PRIVATE_KEY);
+    const decryptedAesKey = crypto.privateDecrypt(
+      { key: privateKey, padding: crypto.constants.RSA_PKCS1_OAEP_PADDING, oaepHash: 'sha256' },
+      Buffer.from(encrypted_aes_key, 'base64')
+    );
+
+    // Decrypt flow data with AES-128-GCM
+    const iv = Buffer.from(initial_vector, 'base64');
+    const encryptedBuffer = Buffer.from(encrypted_flow_data, 'base64');
+    const authTag = encryptedBuffer.slice(-16);
+    const ciphertext = encryptedBuffer.slice(0, -16);
+
+    const decipher = crypto.createDecipheriv('aes-128-gcm', decryptedAesKey, iv);
+    decipher.setAuthTag(authTag);
+    const decrypted = decipher.update(ciphertext, null, 'utf8') + decipher.final('utf8');
+
+    const flowData = JSON.parse(decrypted);
+    console.log('[FLOWS] Decrypted request:', JSON.stringify(flowData));
+
+    // Process
+    const response = handleFlowRequest(flowData);
+    console.log('[FLOWS] Response:', JSON.stringify(response));
+
+    // Encrypt response with AES-128-GCM
+    const responseIv = crypto.randomBytes(12);
+    const cipher = crypto.createCipheriv('aes-128-gcm', decryptedAesKey, responseIv);
+    const encrypted = Buffer.concat([cipher.update(JSON.stringify(response), 'utf8'), cipher.final()]);
+    const responseTag = cipher.getAuthTag();
+
+    return res.json({
+      encrypted_flow_data: Buffer.concat([encrypted, responseTag]).toString('base64'),
+      initial_vector: responseIv.toString('base64'),
+    });
+  } catch (err) {
+    console.error('[FLOWS] Error:', err.message);
+    return res.status(500).json({ error: 'Failed to process flow request' });
+  }
 });
 
 // --- Send message proxy ---
