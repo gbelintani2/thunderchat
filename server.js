@@ -385,25 +385,16 @@ app.post('/api/flows', (req, res) => {
     decipher.setAuthTag(authTag);
     const decryptedBuffer = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
 
-    // Log raw decrypted content for debugging
-    console.log('[FLOWS] Decrypted buffer length:', decryptedBuffer.length);
-    console.log('[FLOWS] Decrypted raw:', decryptedBuffer.toString('utf8'));
-
-    // Last 16 bytes of decrypted plaintext are the AES key for encrypting the response
-    const responseAesKey = decryptedBuffer.slice(-16);
-    const decrypted = decryptedBuffer.slice(0, -16).toString('utf8');
-
-    console.log('[FLOWS] Body after split:', decrypted);
-    const flowData = JSON.parse(decrypted);
+    const flowData = JSON.parse(decryptedBuffer.toString('utf8'));
     console.log('[FLOWS] Decrypted request:', JSON.stringify(flowData));
 
     // Process
     const response = handleFlowRequest(flowData);
     console.log('[FLOWS] Response:', JSON.stringify(response));
 
-    // Encrypt response with AES-128-GCM using the response-specific key
+    // Encrypt response with AES-128-GCM using the same key
     const responseIv = crypto.randomBytes(12);
-    const cipher = crypto.createCipheriv('aes-128-gcm', responseAesKey, responseIv);
+    const cipher = crypto.createCipheriv('aes-128-gcm', decryptedAesKey, responseIv);
     const encrypted = Buffer.concat([cipher.update(JSON.stringify(response), 'utf8'), cipher.final()]);
     const responseTag = cipher.getAuthTag();
 
